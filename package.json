@@ -8,12 +8,21 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Database nama nya profile_db. \r Jika mau menambahkan tabel bisa buka komen bagian index.js berikut ![image](https://github.com/user-attachments/assets/8c6dc987-a53f-4320-8f81-d133286a9981) \r tapi setelah table ke update jangan lupa untuk dikomentari lagi agar tidak terjadi eror.",
   "type": "module",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "mysql2": "^3.14.1",
     "sequelize": "^6.37.7"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/22091397034KhofifahWulandari/Edurise-Backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/22091397034KhofifahWulandari/Edurise-Backend/issues"
+  },
+  "homepage": "https://github.com/22091397034KhofifahWulandari/Edurise-Backend#readme"
 }
