@@ -10,32 +10,36 @@ const Beasiswa = db.define('beasiswa', {
         primaryKey: true,
         autoIncrement: true
     },
-    poster_gambar: { // Kolom baru untuk gambar poster
-        type: DataTypes.STRING,
-        allowNull: true // Boleh kosong jika tidak ada gambar
-    },
-    judul: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    deskripsi: { // Menggunakan 'deskripsi' sesuai model Anda
-        type: DataTypes.TEXT,
-        allowNull: true
-    },
-    persyaratan: {
-        type: DataTypes.TEXT,
-        allowNull: true
-    },
-    manfaat: {
-        type: DataTypes.TEXT,
-        allowNull: true
-    },
-    timeline: { // Sesuai model Anda
+    img: { // Sesuai dengan 'img' di skema SQL
         type: DataTypes.STRING,
         allowNull: true
     },
-    cara_daftar: {
+    title: { // Sesuai dengan 'title' di skema SQL
+        type: DataTypes.STRING,
+        allowNull: true // Default NULL di SQL, jadi di model juga allowNull true
+    },
+    description: { // Sesuai dengan 'description' di skema SQL (sebelumnya 'deskripsi')
         type: DataTypes.TEXT,
+        allowNull: true
+    },
+    detail: { // Kolom baru sesuai 'detail' di skema SQL
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
+    kategori: { // Kolom baru sesuai 'kategori' di skema SQL
+        type: DataTypes.STRING(50), // Batas panjang 50 karakter seperti di SQL
+        allowNull: true
+    },
+    jenjang: { // Kolom baru sesuai 'jenjang' di skema SQL
+        type: DataTypes.STRING(20), // Batas panjang 20 karakter seperti di SQL
+        allowNull: true
+    },
+    lokasi: { // Kolom baru sesuai 'lokasi' di skema SQL
+        type: DataTypes.STRING(100), // Batas panjang 100 karakter seperti di SQL
+        allowNull: true
+    },
+    deadline: { // Sesuai dengan 'deadline' di skema SQL (sebelumnya 'timeline')
+        type: DataTypes.STRING(50), // Batas panjang 50 karakter seperti di SQL
         allowNull: true
     },
 }, {
