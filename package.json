@@ -1,5 +1,5 @@
 {
-  "name": "backend_edurise",
+  "name": "backend_auth",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -8,21 +8,22 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Database nama nya profile_db. \r Jika mau menambahkan tabel bisa buka komen bagian index.js berikut ![image](https://github.com/user-attachments/assets/8c6dc987-a53f-4320-8f81-d133286a9981) \r tapi setelah table ke update jangan lupa untuk dikomentari lagi agar tidak terjadi eror.",
+  "description": "",
   "type": "module",
   "dependencies": {
+    "argon2": "^0.43.0",
+    "connect-session-sequelize": "^7.1.7",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "express-fileupload": "^1.5.1",
+    "express-session": "^1.18.1",
+    "import": "^0.0.6",
     "mysql2": "^3.14.1",
+    "nodemailer": "^7.0.3",
+    "nodemon": "^3.1.10",
     "sequelize": "^6.37.7"
-  },
-  "devDependencies": {},
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/22091397034KhofifahWulandari/Edurise-Backend.git"
-  },
-  "bugs": {
-    "url": "https://github.com/22091397034KhofifahWulandari/Edurise-Backend/issues"
-  },
-  "homepage": "https://github.com/22091397034KhofifahWulandari/Edurise-Backend#readme"
+  }
 }
