@@ -1,10 +1,10 @@
-// controllers/UserSavedForumController.js
+// controllers/ForumParticipantController.js
 import UserModel from "../models/UserModel.js";
 import ForumModel from "../models/ForumModel.js";
-import UserSavedForumModel from "../models/UserSavedForumModel.js";
+import ForumParticipantModel from "../models/ForumParticipantModel.js";
 
-// Mendapatkan semua forum yang disimpan oleh user yang sedang login
-export const getSavedForumsByUser = async (req, res) => {
+// Mendapatkan semua forum yang diikuti oleh user yang sedang login
+export const getJoinedForumsByUser = async (req, res) => {
     const userId = req.userId; // ID user dari middleware autentikasi
 
     try {
@@ -13,8 +13,8 @@ export const getSavedForumsByUser = async (req, res) => {
             attributes: ['uuid', 'name', 'email'],
             include: [{
                 model: ForumModel,
-                as: 'savedForums', // Alias dari relasi di app.js
-                through: { attributes: [] }, // Jangan sertakan kolom dari tabel perantara
+                as: 'joinedForums', // Alias dari relasi di app.js
+                through: { attributes: ['joinedAt'] }, // Sertakan joinedAt dari tabel perantara
                 attributes: ['uuid', 'judul', 'konten', 'kategori', 'createdAt'],
                 include: [{
                     model: UserModel, // Include creator of the forum
@@ -28,14 +28,14 @@ export const getSavedForumsByUser = async (req, res) => {
             return res.status(404).json({ msg: "User tidak ditemukan." });
         }
 
-        res.status(200).json(user.savedForums);
+        res.status(200).json(user.joinedForums);
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
 };
 
-// Menyimpan forum ke profil user
-export const saveForumToProfile = async (req, res) => {
+// User bergabung ke forum
+export const joinForum = async (req, res) => {
     const userId = req.userId;
     const { forumId } = req.body; // Menerima UUID forum dari frontend
 
@@ -54,30 +54,31 @@ export const saveForumToProfile = async (req, res) => {
             return res.status(404).json({ msg: "Forum tidak ditemukan." });
         }
 
-        const existingSave = await UserSavedForumModel.findOne({
+        // Cek apakah user sudah menjadi anggota forum ini
+        const existingParticipant = await ForumParticipantModel.findOne({
             where: {
                 userId: user.id,
                 forumId: forum.id
             }
         });
 
-        if (existingSave) {
-            return res.status(409).json({ msg: "Forum ini sudah tersimpan di profil Anda." });
+        if (existingParticipant) {
+            return res.status(409).json({ msg: "Anda sudah menjadi anggota forum ini." });
         }
 
-        await UserSavedForumModel.create({
+        await ForumParticipantModel.create({
             userId: user.id,
             forumId: forum.id
         });
 
-        res.status(201).json({ msg: "Forum berhasil disimpan di profil Anda." });
+        res.status(201).json({ msg: "Anda berhasil bergabung ke forum." });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
 };
 
-// Menghapus forum dari profil user
-export const removeSavedForumFromProfile = async (req, res) => {
+// User meninggalkan forum
+export const leaveForum = async (req, res) => {
     const userId = req.userId;
     const { forumId } = req.params; // Menerima UUID forum dari URL params
 
@@ -92,7 +93,7 @@ export const removeSavedForumFromProfile = async (req, res) => {
             return res.status(404).json({ msg: "Forum tidak ditemukan." });
         }
 
-        const deletedRows = await UserSavedForumModel.destroy({
+        const deletedRows = await ForumParticipantModel.destroy({
             where: {
                 userId: user.id,
                 forumId: forum.id
@@ -100,10 +101,10 @@ export const removeSavedForumFromProfile = async (req, res) => {
         });
 
         if (deletedRows === 0) {
-            return res.status(404).json({ msg: "Forum tidak ditemukan di daftar simpanan Anda." });
+            return res.status(404).json({ msg: "Anda tidak ditemukan sebagai anggota forum ini." });
         }
 
-        res.status(200).json({ msg: "Forum berhasil dihapus dari profil Anda." });
+        res.status(200).json({ msg: "Anda berhasil meninggalkan forum." });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }

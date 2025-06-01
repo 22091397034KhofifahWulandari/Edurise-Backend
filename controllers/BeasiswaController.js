@@ -1,121 +1,142 @@
-// controllers/BeasiswaController.js
-import Beasiswa from "../models/BeasiswaModel.js";
-// import { Op } from "sequelize"; // Anda bisa uncomment ini jika butuh operator Sequelize di query
+import BeasiswaModel from "../models/BeasiswaModel.js"; // Pastikan nama import sesuai dengan model Anda
 
+// --- MENDAPATKAN SEMUA BEASISWA (Dapat Diakses Umum/User Biasa) ---
 export const getBeasiswa = async (req, res) => {
     try {
-        const response = await Beasiswa.findAll();
+        const response = await BeasiswaModel.findAll({
+            // Anda bisa menyertakan atribut tertentu jika tidak ingin semua data beasiswa ditampilkan
+            // attributes: ['uuid', 'title', 'description', ...]
+            // Jika Anda ingin menyertakan informasi admin yang memposting,
+            // Anda bisa tambahkan 'include' di sini, setelah Anda mendefinisikan relasinya
+            // Misalnya: include: [{ model: UserModel, as: 'postedBy', attributes: ['uuid', 'name'] }]
+            // Ini jika Anda memutuskan untuk memiliki kolom 'adminId' di BeasiswaModel yang merujuk ke UserModel
+        });
         res.status(200).json(response);
     } catch (error) {
-        console.error("Error fetching all beasiswa:", error.message); // Gunakan console.error untuk error
-        res.status(500).json({ msg: "Internal Server Error" });
+        console.error("Error in getBeasiswa:", error);
+        res.status(500).json({ msg: error.message });
     }
 };
 
+// --- MENDAPATKAN BEASISWA BERDASARKAN ID (Dapat Diakses Umum/User Biasa) ---
 export const getBeasiswaById = async (req, res) => {
     try {
-        // Menggunakan findByPk lebih disarankan untuk mencari berdasarkan primary key
-        const response = await Beasiswa.findByPk(req.params.id);
+        const response = await BeasiswaModel.findOne({
+            where: {
+                uuid: req.params.id // Mencari berdasarkan UUID beasiswa
+            },
+            // Anda juga bisa menyertakan informasi admin yang memposting di sini
+            // include: [{ model: UserModel, as: 'postedBy', attributes: ['uuid', 'name'] }]
+        });
+
         if (!response) {
-            return res.status(404).json({ msg: "Beasiswa Not Found" });
+            return res.status(404).json({ msg: "Beasiswa tidak ditemukan" });
         }
+
         res.status(200).json(response);
     } catch (error) {
-        console.error("Error fetching beasiswa by ID:", error.message); // Gunakan console.error
-        res.status(500).json({ msg: "Internal Server Error" });
+        console.error("Error in getBeasiswaById:", error);
+        res.status(500).json({ msg: error.message });
     }
 };
 
+// --- MEMBUAT BEASISWA BARU (Hanya Admin) ---
 export const createBeasiswa = async (req, res) => {
-    // Destrukturisasi semua kolom baru yang sesuai dengan model
+    // Pastikan ada middleware autentikasi/otorisasi sebelum controller ini
+    // untuk memverifikasi bahwa req.user.role adalah 'admin'
+    // Contoh: if (req.user.role !== 'admin') return res.status(403).json({ msg: "Akses ditolak" });
+
     const { img, title, description, detail, kategori, jenjang, lokasi, deadline } = req.body;
 
-    // Optional: Validasi sederhana untuk kolom yang mungkin Anda anggap harus ada.
-    // Berdasarkan skema SQL dan model, banyak kolom allowNull: true.
-    // Jika Anda ingin 'title' atau 'description' wajib, Anda harus mengubah 'allowNull' di model menjadi 'false'
-    // dan bisa tambahkan validasi di sini jika diperlukan, contoh:
-    /*
-    if (!title || !description) {
-        return res.status(400).json({ msg: "Title and Description are required fields." });
+    // Validasi input dasar
+    if (!title || !description || !detail || !kategori || !jenjang || !lokasi || !deadline) {
+        return res.status(400).json({ msg: "Semua kolom wajib diisi" });
     }
-    */
 
     try {
-        const newBeasiswa = await Beasiswa.create({
-            img,
-            title,
-            description,
-            detail,
-            kategori,
-            jenjang,
-            lokasi,
-            deadline
+        await BeasiswaModel.create({
+            img: img, // Jika img adalah URL atau path
+            title: title,
+            description: description,
+            detail: detail,
+            kategori: kategori,
+            jenjang: jenjang,
+            lokasi: lokasi,
+            deadline: deadline
+            // Jika Anda memiliki kolom 'adminId' atau 'postedById' di BeasiswaModel,
+            // tambahkan di sini: adminId: req.user.id
         });
-        res.status(201).json({ msg: "Beasiswa created successfully", data: newBeasiswa }); // Mengembalikan data yang baru dibuat
+        res.status(201).json({ msg: "Beasiswa berhasil ditambahkan" });
     } catch (error) {
-        console.error("Error creating beasiswa:", error.message); // Gunakan console.error
-        // Jika ada error validasi dari Sequelize (misal allowNull: false tidak terpenuhi), 400 lebih tepat
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ msg: error.errors.map(e => e.message).join(', ') });
-        }
+        console.error("Error in createBeasiswa:", error);
         res.status(400).json({ msg: error.message });
     }
 };
 
+// --- MEMPERBARUI BEASISWA (Hanya Admin) ---
 export const updateBeasiswa = async (req, res) => {
-    const { id } = req.params;
-    // Destrukturisasi semua kolom yang bisa di-update
+    // Pastikan ada middleware autentikasi/otorisasi untuk admin
+    const beasiswa = await BeasiswaModel.findOne({
+        where: {
+            uuid: req.params.id
+        }
+    });
+
+    if (!beasiswa) {
+        return res.status(404).json({ msg: "Beasiswa tidak ditemukan" });
+    }
+
     const { img, title, description, detail, kategori, jenjang, lokasi, deadline } = req.body;
 
+    // Validasi input dasar
+    if (!title || !description || !detail || !kategori || !jenjang || !lokasi || !deadline) {
+        return res.status(400).json({ msg: "Semua kolom wajib diisi" });
+    }
+
     try {
-        // Menggunakan findByPk untuk mencari beasiswa yang akan diupdate
-        const beasiswa = await Beasiswa.findByPk(id);
-        if (!beasiswa) {
-            return res.status(404).json({ msg: "Beasiswa Not Found" });
-        }
-
-        // Buat objek `updateData` hanya dengan kolom yang ada di `req.body`
-        // Ini menghindari pengiriman `undefined` ke database untuk kolom yang tidak diubah
-        const updateData = {};
-        if (img !== undefined) updateData.img = img;
-        if (title !== undefined) updateData.title = title;
-        if (description !== undefined) updateData.description = description;
-        if (detail !== undefined) updateData.detail = detail;
-        if (kategori !== undefined) updateData.kategori = kategori;
-        if (jenjang !== undefined) updateData.jenjang = jenjang;
-        if (lokasi !== undefined) updateData.lokasi = lokasi;
-        if (deadline !== undefined) updateData.deadline = deadline;
-
-        // Lakukan update pada instance beasiswa yang ditemukan
-        await beasiswa.update(updateData);
-        
-        res.status(200).json({ msg: "Beasiswa updated successfully", data: beasiswa }); // Mengembalikan data yang sudah diupdate
+        await BeasiswaModel.update({
+            img: img,
+            title: title,
+            description: description,
+            detail: detail,
+            kategori: kategori,
+            jenjang: jenjang,
+            lokasi: lokasi,
+            deadline: deadline
+        }, {
+            where: {
+                id: beasiswa.id // Gunakan primary key 'id' untuk update
+            }
+        });
+        res.status(200).json({ msg: "Beasiswa berhasil diperbarui" });
     } catch (error) {
-        console.error("Error updating beasiswa:", error.message); // Gunakan console.error
-        // Jika ada error validasi dari Sequelize, 400 lebih tepat
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ msg: error.errors.map(e => e.message).join(', ') });
-        }
+        console.error("Error in updateBeasiswa:", error);
         res.status(400).json({ msg: error.message });
     }
 };
 
+// --- MENGHAPUS BEASISWA (Hanya Admin) ---
 export const deleteBeasiswa = async (req, res) => {
-    try {
-        const { id } = req.params; // Destrukturisasi ID untuk kejelasan
-
-        // Menggunakan findByPk untuk mencari beasiswa yang akan dihapus
-        const beasiswa = await Beasiswa.findByPk(id);
-        if (!beasiswa) {
-            return res.status(404).json({ msg: "Beasiswa Not Found" });
+    // Pastikan ada middleware autentikasi/otorisasi untuk admin
+    const beasiswa = await BeasiswaModel.findOne({
+        where: {
+            uuid: req.params.id
         }
+    });
 
-        // Hapus instance beasiswa yang ditemukan
-        await beasiswa.destroy();
-        
-        res.status(200).json({ msg: "Beasiswa deleted successfully" });
+    if (!beasiswa) {
+        return res.status(404).json({ msg: "Beasiswa tidak ditemukan" });
+    }
+
+    try {
+        await BeasiswaModel.destroy({
+            where: {
+                id: beasiswa.id // Gunakan primary key 'id' untuk delete
+            }
+        });
+        res.status(200).json({ msg: "Beasiswa berhasil dihapus" });
     } catch (error) {
-        console.error("Error deleting beasiswa:", error.message); // Gunakan console.error
-        res.status(500).json({ msg: "Internal Server Error" }); // Error saat delete lebih ke server
+        console.error("Error in deleteBeasiswa:", error);
+        res.status(400).json({ msg: error.message });
     }
 };

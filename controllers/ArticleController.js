@@ -1,115 +1,111 @@
 // controllers/ArticleController.js
 import Article from "../models/ArticleModel.js";
+import { Op } from "sequelize"; // Impor Op untuk operasi pencarian
 
-// Mendapatkan semua Artikel
+// Mendapatkan semua artikel (akses publik)
 export const getArticles = async (req, res) => {
     try {
-        const response = await Article.findAll();
+        const response = await Article.findAll({
+            attributes: ['uuid', 'judul', 'deskripsi', 'gambar', 'link', 'penulis', 'kategori']
+        });
         res.status(200).json(response);
     } catch (error) {
-        console.log(error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Mendapatkan Artikel berdasarkan ID
+// Mendapatkan artikel berdasarkan UUID (akses publik)
 export const getArticleById = async (req, res) => {
     try {
-        const response = await Article.findByPk(req.params.id);
+        const response = await Article.findOne({
+            where: {
+                uuid: req.params.id
+            },
+            attributes: ['uuid', 'judul', 'deskripsi', 'gambar', 'link', 'penulis', 'kategori']
+        });
         if (!response) {
-            return res.status(404).json({ msg: "Article Not Found" });
+            return res.status(404).json({ msg: "Artikel tidak ditemukan." });
         }
         res.status(200).json(response);
     } catch (error) {
-        console.log(error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Membuat Artikel baru
+// Membuat artikel baru (khusus admin)
 export const createArticle = async (req, res) => {
-    // Sesuaikan dengan kolom yang ada di model Article Anda
     const { judul, deskripsi, gambar, link, penulis, kategori } = req.body;
     try {
-        const validCategories = ['Beasiswa & Pendidikan', 'Pengembangan Diri & Karir', 'Tips Belajar & Produktivitas'];
-        if (!validCategories.includes(kategori)) {
-            return res.status(400).json({ msg: "Kategori tidak valid. Pilihan: Beasiswa & Pendidikan, Pengembangan Diri & Karir, Tips Belajar & Produktivitas" });
-        }
-
-        const newArticle = await Article.create({
+        await Article.create({
             judul: judul,
             deskripsi: deskripsi,
             gambar: gambar,
             link: link,
-            penulis: penulis, // Simpan data penulis
-            kategori: kategori // Simpan data kategori
+            penulis: penulis,
+            kategori: kategori
         });
-        res.status(201).json({ msg: "Article Created", data: newArticle });
+        res.status(201).json({ msg: "Artikel berhasil ditambahkan." });
     } catch (error) {
-        console.log(error.message);
-        // Error ER_DUP_ENTRY untuk link yang unique, atau error validasi lainnya
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(409).json({ msg: "Link artikel sudah ada. Mohon gunakan link yang berbeda." });
+            return res.status(409).json({ msg: "Link artikel sudah ada." });
         }
-        res.status(400).json({ msg: error.message });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Memperbarui Artikel
+// Memperbarui artikel (khusus admin)
 export const updateArticle = async (req, res) => {
+    const article = await Article.findOne({
+        where: {
+            uuid: req.params.id
+        }
+    });
+    if (!article) {
+        return res.status(404).json({ msg: "Artikel tidak ditemukan." });
+    }
+
+    const { judul, deskripsi, gambar, link, penulis, kategori } = req.body;
     try {
-        const article = await Article.findByPk(req.params.id);
-        if (!article) {
-            return res.status(404).json({ msg: "Article Not Found" });
-        }
-
-        // Sesuaikan dengan kolom yang ada di model Article Anda
-        const { judul, deskripsi, gambar, link, penulis, kategori } = req.body;
-
-        // Validasi kategori jika disertakan dalam update
-        if (kategori && !['Beasiswa & Pendidikan', 'Pengembangan Diri & Karir', 'Tips Belajar & Produktivitas'].includes(kategori)) {
-            return res.status(400).json({ msg: "Kategori tidak valid. Pilihan: Beasiswa & Pendidikan, Pengembangan Diri & Karir, Tips Belajar & Produktivitas" });
-        }
-
         await Article.update({
             judul: judul,
             deskripsi: deskripsi,
             gambar: gambar,
             link: link,
-            penulis: penulis, // Update data penulis
-            kategori: kategori // Update data kategori
+            penulis: penulis,
+            kategori: kategori
         }, {
             where: {
-                id: req.params.id,
-            },
+                uuid: req.params.id
+            }
         });
-        res.status(200).json({ msg: "Article Updated" });
+        res.status(200).json({ msg: "Artikel berhasil diperbarui." });
     } catch (error) {
-        console.log(error.message);
-         // Error ER_DUP_ENTRY untuk link yang unique
-         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(409).json({ msg: "Link artikel sudah ada. Mohon gunakan link yang berbeda." });
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ msg: "Link artikel sudah ada." });
         }
-        res.status(400).json({ msg: error.message });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Menghapus Artikel
+// Menghapus artikel (khusus admin)
 export const deleteArticle = async (req, res) => {
-    try {
-        const article = await Article.findByPk(req.params.id);
-        if (!article) {
-            return res.status(404).json({ msg: "Article Not Found" });
+    const article = await Article.findOne({
+        where: {
+            uuid: req.params.id
         }
+    });
+    if (!article) {
+        return res.status(404).json({ msg: "Artikel tidak ditemukan." });
+    }
 
+    try {
         await Article.destroy({
             where: {
-                id: req.params.id,
-            },
+                uuid: req.params.id
+            }
         });
-        res.status(200).json({ msg: "Article Deleted" });
+        res.status(200).json({ msg: "Artikel berhasil dihapus." });
     } catch (error) {
-        console.log(error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };

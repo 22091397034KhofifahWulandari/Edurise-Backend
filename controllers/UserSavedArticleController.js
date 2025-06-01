@@ -1,85 +1,107 @@
-import UserSavedArticle from "../models/UserSavedArticleModel.js";
-import Article from "../models/ArticleModel.js"; // Diperlukan untuk mengambil detail artikel
+// controllers/UserSavedArticleController.js
+import UserModel from "../models/UserModel.js";
+import ArticleModel from "../models/ArticleModel.js";
+import UserSavedArticleModel from "../models/UserSavedArticleModel.js";
 
-// Mendapatkan semua artikel yang disimpan oleh user tertentu
-export const getSavedArticlesByUserId = async (req, res) => {
-  try {
-    const { userId } = req.params; // Mengambil userId dari parameter URL
+// Mendapatkan semua artikel yang disimpan oleh user yang sedang login
+export const getSavedArticlesByUser = async (req, res) => {
+    const userId = req.userId; // Dapatkan ID user dari middleware autentikasi (verifyUser)
 
-    // Mencari semua entri di tabel user_saved_articles berdasarkan userId
-    const savedArticles = await UserSavedArticle.findAll({
-      where: {
-        userId: userId,
-      },
-      // Menggabungkan (join) dengan model Article menggunakan alias yang didefinisikan di Relasi.js
-      include: [{
-        model: Article,
-        as: 'savedArticleDetails', // PENTING: Gunakan alias yang sama dengan di `UserSavedArticle.belongsTo(Article, { as: 'savedArticleDetails' })`
-        attributes: ['id', 'judul', 'deskripsi', 'gambar', 'link'] // Pilih atribut yang ingin ditampilkan
-      }]
-    });
+    try {
+        const user = await UserModel.findOne({
+            where: { id: userId },
+            attributes: ['uuid', 'name', 'email'],
+            include: [{
+                model: ArticleModel,
+                as: 'savedArticles', // Sesuai dengan alias di relasi Many-to-Many di app.js
+                through: { attributes: [] }, // Jangan sertakan kolom dari tabel perantara di respons
+                attributes: ['uuid', 'judul', 'deskripsi', 'gambar', 'link', 'penulis', 'kategori']
+            }]
+        });
 
-    // Mengolah respons untuk menampilkan hanya detail artikel
-    // Karena kita pakai alias 'savedArticleDetails' di include, objek Article akan ada di saved.savedArticleDetails
-    // Tambahkan filter null/undefined untuk robustness
-    const articlesData = savedArticles
-      .filter(saved => saved.savedArticleDetails !== null) // Pastikan objek Article tidak null
-      .map(saved => saved.savedArticleDetails); // Ambil objek Article melalui alias
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
 
-    res.status(200).json(articlesData);
-  } catch (error) {
-    console.log(error.message); // Log pesan error lengkap ke konsol server
-    res.status(500).json({ msg: "Internal Server Error" }); // Kirim respons error ke klien
-  }
+        res.status(200).json(user.savedArticles);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
 };
 
-// Menyimpan artikel untuk user
-export const saveArticleForUser = async (req, res) => {
-  try {
-    const { userId, articleId } = req.body; // userId dan articleId dikirimkan di body request
+// Menyimpan artikel ke profil user
+export const saveArticleToProfile = async (req, res) => {
+    const userId = req.userId;
+    const { articleId } = req.body; // Menerima UUID artikel dari frontend
 
-    // Memeriksa apakah artikel sudah tersimpan untuk user ini
-    const existingEntry = await UserSavedArticle.findOne({
-      where: {
-        userId: userId,
-        articleId: articleId,
-      },
-    });
-
-    if (existingEntry) {
-      return res.status(409).json({ msg: "Article already saved by this user" }); // 409 Conflict
+    if (!articleId) {
+        return res.status(400).json({ msg: "ID Artikel diperlukan." });
     }
 
-    await UserSavedArticle.create({
-      userId: userId,
-      articleId: articleId,
-    });
-    res.status(201).json({ msg: "Article saved successfully" });
-  } catch (error) {
-    console.log(error.message);
-    res.status(400).json({ msg: error.message }); // Mengirim pesan error validasi dari Sequelize
-  }
+    try {
+        const user = await UserModel.findOne({ where: { id: userId } });
+        const article = await ArticleModel.findOne({ where: { uuid: articleId } });
+
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
+        if (!article) {
+            return res.status(404).json({ msg: "Artikel tidak ditemukan." });
+        }
+
+        // Cek apakah artikel sudah disimpan oleh user ini
+        const existingSave = await UserSavedArticleModel.findOne({
+            where: {
+                userId: user.id,
+                articleId: article.id
+            }
+        });
+
+        if (existingSave) {
+            return res.status(409).json({ msg: "Artikel ini sudah tersimpan di profil Anda." });
+        }
+
+        // Buat entri baru di tabel perantara
+        await UserSavedArticleModel.create({
+            userId: user.id,
+            articleId: article.id
+        });
+
+        res.status(201).json({ msg: "Artikel berhasil disimpan di profil Anda." });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
 };
 
-// Menghapus artikel yang tersimpan untuk user
-export const deleteSavedArticleForUser = async (req, res) => {
-  try {
-    const { userId, articleId } = req.params; // userId dan articleId dari parameter URL
+// Menghapus artikel dari profil user
+export const removeSavedArticleFromProfile = async (req, res) => {
+    const userId = req.userId;
+    const { articleId } = req.params; // Menerima UUID artikel dari URL params
 
-    const result = await UserSavedArticle.destroy({
-      where: {
-        userId: userId,
-        articleId: articleId,
-      },
-    });
+    try {
+        const user = await UserModel.findOne({ where: { id: userId } });
+        const article = await ArticleModel.findOne({ where: { uuid: articleId } });
 
-    if (result === 0) { // Jika tidak ada baris yang terhapus, berarti tidak ditemukan
-      return res.status(404).json({ msg: "Saved article not found" });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
+        if (!article) {
+            return res.status(404).json({ msg: "Artikel tidak ditemukan." });
+        }
+
+        const deletedRows = await UserSavedArticleModel.destroy({
+            where: {
+                userId: user.id,
+                articleId: article.id
+            }
+        });
+
+        if (deletedRows === 0) {
+            return res.status(404).json({ msg: "Artikel tidak ditemukan di daftar simpanan Anda." });
+        }
+
+        res.status(200).json({ msg: "Artikel berhasil dihapus dari profil Anda." });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
     }
-
-    res.status(200).json({ msg: "Saved article deleted successfully" });
-  } catch (error) {
-    console.log(error.message);
-    res.status(500).json({ msg: "Internal Server Error" });
-  }
 };

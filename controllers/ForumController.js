@@ -1,154 +1,123 @@
 // controllers/ForumController.js
-import Forum from "../models/ForumModel.js";
-import User from "../models/UserModel.js";
+import ForumModel from "../models/ForumModel.js";
+import UserModel from "../models/UserModel.js"; // Untuk mengambil nama pembuat
 import { Op } from "sequelize";
 
-// Helper function untuk memproses data forum (untuk single atau bulk creation)
-const processForumData = async (forumInput) => {
-    // Menggunakan 'konten' seperti permintaan awal
-    const { userId, judul, konten, kategori, anggota_di_forum } = forumInput;
-
-    // Validasi dasar
-    if (!userId || !judul || !konten || !kategori) { // Validasi konten
-        throw new Error("Missing required fields: userId, judul, konten, and kategori.");
-    }
-
-    // Validasi userId dan ambil nama pembuat forum
-    const user = await User.findByPk(userId, { attributes: ['nama'] });
-    if (!user) {
-        throw new Error(`User with ID ${userId} not found.`);
-    }
-
-    // Siapkan objek data untuk dibuat/diupdate
-    return {
-        userId,
-        judul,
-        konten, // Menggunakan konten
-        nama_pembuat_forum: user.nama, // Diambil dari User model
-        anggota_di_forum: anggota_di_forum || '', // Default string kosong jika tidak ada
-        kategori
-    };
-};
-
-// Membuat Forum Baru (Mendukung single atau bulk creation)
-export const createForum = async (req, res) => {
+// Mendapatkan semua forum (akses publik)
+export const getForums = async (req, res) => {
     try {
-        let createdForums;
-        const isBulk = Array.isArray(req.body);
-
-        if (isBulk) {
-            // Proses setiap objek dalam array untuk bulk create
-            const processedData = await Promise.all(
-                req.body.map(data => processForumData(data))
-            );
-            createdForums = await Forum.bulkCreate(processedData, {
-                validate: true // Menjalankan validasi Sequelize untuk setiap objek
-            });
-            res.status(201).json({ msg: `${createdForums.length} Forums created successfully`, forums: createdForums });
-        } else {
-            // Proses satu objek untuk single create
-            const processedData = await processForumData(req.body);
-            createdForums = await Forum.create(processedData);
-            res.status(201).json({ msg: "Forum created successfully", forum: createdForums });
-        }
-    } catch (error) {
-        console.error("Error creating forum:", error.message);
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ msg: error.errors.map(e => e.message).join(', ') });
-        }
-        res.status(400).json({ msg: error.message });
-    }
-};
-
-// Mendapatkan Semua Forum
-export const getAllForums = async (req, res) => {
-    try {
-        const forums = await Forum.findAll({
+        const response = await ForumModel.findAll({
+            attributes: ['uuid', 'judul', 'konten', 'kategori', 'createdAt'],
             include: [{
-                model: User,
-                as: 'creator',
-                attributes: ['id', 'nama']
-            }],
-            order: [['createdAt', 'DESC']]
+                model: UserModel,
+                as: 'creator', // Alias dari relasi di app.js
+                attributes: ['uuid', 'name'] // Hanya ambil uuid dan nama pembuat
+            }]
         });
-        res.status(200).json(forums);
+        res.status(200).json(response);
     } catch (error) {
-        console.error("Error fetching all forums:", error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Mendapatkan Forum Berdasarkan ID
+// Mendapatkan forum berdasarkan UUID (akses publik)
 export const getForumById = async (req, res) => {
     try {
-        const forum = await Forum.findByPk(req.params.id, {
+        const forum = await ForumModel.findOne({
+            where: {
+                uuid: req.params.id
+            },
+            attributes: ['uuid', 'judul', 'konten', 'kategori', 'createdAt'],
             include: [{
-                model: User,
+                model: UserModel,
                 as: 'creator',
-                attributes: ['id', 'nama']
+                attributes: ['uuid', 'name']
             }]
         });
         if (!forum) {
-            return res.status(404).json({ msg: "Forum not found" });
+            return res.status(404).json({ msg: "Forum tidak ditemukan." });
         }
         res.status(200).json(forum);
     } catch (error) {
-        console.error("Error fetching forum by ID:", error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Mengupdate Forum
+// Membuat forum baru (akses user terautentikasi)
+export const createForum = async (req, res) => {
+    const { judul, konten, kategori } = req.body;
+    const userId = req.userId; // Dari middleware verifyUser
+
+    try {
+        await ForumModel.create({
+            userId: userId,
+            judul: judul,
+            konten: konten,
+            kategori: kategori
+        });
+        res.status(201).json({ msg: "Forum berhasil dibuat." });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+// Memperbarui forum (akses hanya pembuat forum)
 export const updateForum = async (req, res) => {
+    const forum = await ForumModel.findOne({
+        where: {
+            uuid: req.params.id
+        }
+    });
+    if (!forum) {
+        return res.status(404).json({ msg: "Forum tidak ditemukan." });
+    }
+
+    // Pastikan user yang login adalah pembuat forum
+    if (req.userId !== forum.userId) {
+        return res.status(403).json({ msg: "Anda tidak berhak memperbarui forum ini." });
+    }
+
+    const { judul, konten, kategori } = req.body;
     try {
-        const { id } = req.params;
-        const { userId: requestingUserId, judul, konten, nama_pembuat_forum, anggota_di_forum, kategori } = req.body; // Menggunakan konten
-
-        const forum = await Forum.findByPk(id);
-        if (!forum) {
-            return res.status(404).json({ msg: "Forum not found" });
-        }
-
-        if (forum.userId !== requestingUserId) {
-            return res.status(403).json({ msg: "Unauthorized: You are not the creator of this forum" });
-        }
-
-        const updateData = {};
-        if (judul !== undefined) updateData.judul = judul;
-        if (konten !== undefined) updateData.konten = konten; // Menggunakan konten
-        if (anggota_di_forum !== undefined) updateData.anggota_di_forum = anggota_di_forum;
-        if (kategori !== undefined) updateData.kategori = kategori;
-
-        await forum.update(updateData);
-        res.status(200).json({ msg: "Forum updated successfully", forum: forum });
+        await ForumModel.update({
+            judul: judul,
+            konten: konten,
+            kategori: kategori
+        }, {
+            where: {
+                uuid: req.params.id
+            }
+        });
+        res.status(200).json({ msg: "Forum berhasil diperbarui." });
     } catch (error) {
-        console.error("Error updating forum:", error.message);
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ msg: error.errors.map(e => e.message).join(', ') });
-        }
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-// Menghapus Forum
+// Menghapus forum (akses hanya pembuat forum)
 export const deleteForum = async (req, res) => {
+    const forum = await ForumModel.findOne({
+        where: {
+            uuid: req.params.id
+        }
+    });
+    if (!forum) {
+        return res.status(404).json({ msg: "Forum tidak ditemukan." });
+    }
+
+    // Pastikan user yang login adalah pembuat forum
+    if (req.userId !== forum.userId) {
+        return res.status(403).json({ msg: "Anda tidak berhak menghapus forum ini." });
+    }
+
     try {
-        const { id } = req.params;
-        const { userId: requestingUserId } = req.body;
-
-        const forum = await Forum.findByPk(id);
-        if (!forum) {
-            return res.status(404).json({ msg: "Forum not found" });
-        }
-
-        if (forum.userId !== requestingUserId) {
-            return res.status(403).json({ msg: "Unauthorized: You are not the creator of this forum" });
-        }
-
-        await forum.destroy();
-        res.status(200).json({ msg: "Forum deleted successfully" });
+        await ForumModel.destroy({
+            where: {
+                uuid: req.params.id
+            }
+        });
+        res.status(200).json({ msg: "Forum berhasil dihapus." });
     } catch (error) {
-        console.error("Error deleting forum:", error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };

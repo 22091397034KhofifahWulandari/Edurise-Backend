@@ -1,89 +1,135 @@
-// controllers/UserSavedBeasiswaController.js
-import UserSavedBeasiswa from "../models/UserSavedBeasiswaModel.js";
-import Beasiswa from "../models/BeasiswaModel.js";
+import UserModel from "../models/UserModel.js";
+import BeasiswaModel from "../models/BeasiswaModel.js";
+import UserSavedBeasiswaModel from "../models/UserSavedBeasiswaModel.js"; // Model tabel perantara
 
-export const getSavedBeasiswaByUserId = async (req, res) => {
+// --- MENDAPATKAN SEMUA BEASISWA YANG DISIMPAN OLEH USER ---
+export const getSavedBeasiswaByUser = async (req, res) => {
+    // Asumsi: Anda memiliki middleware yang mengidentifikasi user yang sedang login
+    // dan menyimpan ID user di req.userId (atau req.user.id)
+    const userId = req.userId; // Dapatkan ID user dari middleware autentikasi/sesi
+
+    if (!userId) {
+        return res.status(401).json({ msg: "Autentikasi diperlukan." });
+    }
+
     try {
-        const { userId } = req.params;
-
-        const savedBeasiswaEntries = await UserSavedBeasiswa.findAll({
-            where: { userId: userId },
+        const user = await UserModel.findOne({
+            where: { id: userId }, // Cari user berdasarkan ID primary key
+            attributes: ['uuid', 'name', 'email'], // Ambil atribut user yang relevan
             include: [{
-                model: Beasiswa,
-                as: 'savedBeasiswa', // Gunakan alias yang sama dengan di `models/Relasi.js`
-                attributes: ['id', 'img', 'title', 'description', 'detail', 'kategori', 'jenjang', 'lokasi', 'deadline']
+                model: BeasiswaModel,
+                as: 'savedBeasiswa', // Sesuai dengan alias di UserSavedBeasiswaModel
+                through: { attributes: [] }, // Jangan sertakan kolom dari tabel perantara di respons
+                attributes: ['uuid', 'title', 'description', 'img', 'kategori', 'jenjang', 'lokasi', 'deadline'] // Ambil atribut beasiswa yang relevan
             }]
         });
 
-        const beasiswaData = savedBeasiswaEntries
-            .filter(saved => saved.savedBeasiswa !== null) // Akses data beasiswa melalui alias
-            .map(saved => saved.savedBeasiswa);
-
-        if (beasiswaData.length === 0) {
-            return res.status(404).json({ msg: "No saved beasiswa found for this user." });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
         }
 
-        res.status(200).json(beasiswaData);
+        res.status(200).json(user.savedBeasiswa); // Mengirimkan array beasiswa yang disimpan
     } catch (error) {
-        console.error("Error fetching saved beasiswa for user:", error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        console.error("Error in getSavedBeasiswaByUser:", error);
+        res.status(500).json({ msg: error.message });
     }
 };
 
-export const saveBeasiswaForUser = async (req, res) => {
-    const { userId, beasiswaId } = req.body;
+// --- MENYIMPAN BEASISWA KE PROFIL USER ---
+export const saveBeasiswaToProfile = async (req, res) => {
+    // Asumsi: req.userId tersedia dari middleware autentikasi
+    const userId = req.userId;
+    const { beasiswaId } = req.body; // Menerima UUID beasiswa dari frontend
 
-    if (!userId || !beasiswaId) {
-        return res.status(400).json({ msg: "User ID and Beasiswa ID are required." });
+    if (!userId) {
+        return res.status(401).json({ msg: "Autentikasi diperlukan." });
+    }
+    if (!beasiswaId) {
+        return res.status(400).json({ msg: "ID Beasiswa diperlukan." });
     }
 
     try {
-        const existingEntry = await UserSavedBeasiswa.findOne({
-            where: {
-                userId: userId,
-                beasiswaId: beasiswaId,
-            },
-        });
-
-        if (existingEntry) {
-            return res.status(409).json({ msg: "Beasiswa already saved by this user." });
+        // Cari user yang sedang login (menggunakan primary key ID)
+        const user = await UserModel.findOne({ where: { id: userId } });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
         }
 
-        const newSavedEntry = await UserSavedBeasiswa.create({
-            userId: userId,
-            beasiswaId: beasiswaId,
+        // Cari beasiswa yang ingin disimpan (menggunakan UUID)
+        const beasiswa = await BeasiswaModel.findOne({ where: { uuid: beasiswaId } });
+        if (!beasiswa) {
+            return res.status(404).json({ msg: "Beasiswa tidak ditemukan." });
+        }
+
+        // Cek apakah beasiswa sudah disimpan oleh user ini
+        const existingSave = await UserSavedBeasiswaModel.findOne({
+            where: {
+                userId: user.id,     // Menggunakan ID primary key dari user
+                beasiswaId: beasiswa.id // Menggunakan ID primary key dari beasiswa
+            }
         });
-        res.status(201).json({ msg: "Beasiswa saved successfully", data: newSavedEntry });
+
+        if (existingSave) {
+            return res.status(409).json({ msg: "Beasiswa ini sudah tersimpan di profil Anda." });
+        }
+
+        // Buat entri baru di tabel perantara
+        await UserSavedBeasiswaModel.create({
+            userId: user.id,
+            beasiswaId: beasiswa.id
+            // 'savedAt' akan otomatis terisi karena ada defaultValue: DataTypes.NOW
+        });
+
+        res.status(201).json({ msg: "Beasiswa berhasil disimpan di profil Anda." });
     } catch (error) {
-        console.error("Error saving beasiswa for user:", error.message);
+        console.error("Error in saveBeasiswaToProfile:", error);
+        // Error kode 23505 (PostgreSQL) atau 1062 (MySQL) menunjukkan duplikasi entry unique index
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(409).json({ msg: "Beasiswa already saved by this user (duplicate entry)." });
+             return res.status(409).json({ msg: "Beasiswa ini sudah tersimpan di profil Anda." });
         }
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ msg: error.errors.map(e => e.message).join(', ') });
-        }
-        res.status(500).json({ msg: "Internal Server Error" });
+        res.status(500).json({ msg: error.message });
     }
 };
 
-export const deleteSavedBeasiswaForUser = async (req, res) => {
+// --- MENGHAPUS BEASISWA DARI PROFIL USER ---
+export const removeSavedBeasiswaFromProfile = async (req, res) => {
+    // Asumsi: req.userId tersedia dari middleware autentikasi
+    const userId = req.userId;
+    const { beasiswaId } = req.params; // Menerima UUID beasiswa dari URL params
+
+    if (!userId) {
+        return res.status(401).json({ msg: "Autentikasi diperlukan." });
+    }
+    if (!beasiswaId) {
+        return res.status(400).json({ msg: "ID Beasiswa diperlukan." });
+    }
+
     try {
-        const { userId, beasiswaId } = req.params;
-
-        const result = await UserSavedBeasiswa.destroy({
-            where: {
-                userId: userId,
-                beasiswaId: beasiswaId,
-            },
-        });
-
-        if (result === 0) {
-            return res.status(404).json({ msg: "Saved beasiswa entry not found for this user and beasiswa." });
+        const user = await UserModel.findOne({ where: { id: userId } });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
         }
 
-        res.status(200).json({ msg: "Saved beasiswa deleted successfully" });
+        const beasiswa = await BeasiswaModel.findOne({ where: { uuid: beasiswaId } });
+        if (!beasiswa) {
+            return res.status(404).json({ msg: "Beasiswa tidak ditemukan." });
+        }
+
+        // Hapus entri dari tabel perantara
+        const deletedRows = await UserSavedBeasiswaModel.destroy({
+            where: {
+                userId: user.id,
+                beasiswaId: beasiswa.id
+            }
+        });
+
+        if (deletedRows === 0) {
+            return res.status(404).json({ msg: "Beasiswa tidak ditemukan di daftar simpanan Anda." });
+        }
+
+        res.status(200).json({ msg: "Beasiswa berhasil dihapus dari profil Anda." });
     } catch (error) {
-        console.error("Error deleting saved beasiswa for user:", error.message);
-        res.status(500).json({ msg: "Internal Server Error" });
+        console.error("Error in removeSavedBeasiswaFromProfile:", error);
+        res.status(500).json({ msg: error.message });
     }
 };

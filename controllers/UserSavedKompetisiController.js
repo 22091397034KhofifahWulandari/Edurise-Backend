@@ -1,75 +1,108 @@
 // controllers/UserSavedKompetisiController.js
-import UserSavedKompetisi from "../models/UserSavedKompetisiModel.js";
-import Kompetisi from "../models/KompetisiModel.js"; // Diperlukan untuk detail kompetisi
+import UserSavedKompetisiModel from "../models/UserSavedKompetisiModel.js";
+import KompetisiModel from "../models/KompetisiModel.js";
+import UserModel from "../models/UserModel.js";
 
-export const getSavedKompetisiByUserId = async (req, res) => {
-  try {
-    const { userId } = req.params;
+// Menyimpan kompetisi
+export const saveKompetisi = async (req, res) => {
+    const userInternalId = req.userId;
+    const { kompetisiUuid } = req.body;
 
-    const savedKompetisiEntries = await UserSavedKompetisi.findAll({
-      where: { userId: userId },
-      include: [{
-        model: Kompetisi,
-        as: 'savedKompetisiDetails', // Gunakan alias yang sama dengan di `UserSavedKompetisi.belongsTo(Kompetisi, { as: 'savedKompetisiDetails' })`
-        attributes: ['id', 'poster_gambar', 'judul', 'tanggal', 'biaya', 'tingkat_kompetisi', 'tentang_kompetisi', 'syarat', 'ketentuan_kompetisi', 'benefit']
-      }]
-    });
+    try {
+        const user = await UserModel.findOne({ where: { id: userInternalId } });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
 
-    const kompetisiData = savedKompetisiEntries
-      .filter(saved => saved.savedKompetisiDetails !== null)
-      .map(saved => saved.savedKompetisiDetails);
+        const kompetisi = await KompetisiModel.findOne({ where: { uuid: kompetisiUuid } });
+        if (!kompetisi) {
+            return res.status(404).json({ msg: "Kompetisi tidak ditemukan." });
+        }
 
-    res.status(200).json(kompetisiData);
-  } catch (error) {
-    console.log(error.message);
-    res.status(500).json({ msg: "Internal Server Error" });
-  }
+        const existingSavedKompetisi = await UserSavedKompetisiModel.findOne({
+            where: {
+                userId: user.id,
+                kompetisiId: kompetisi.id
+            }
+        });
+
+        if (existingSavedKompetisi) {
+            return res.status(409).json({ msg: "Kompetisi ini sudah Anda simpan." });
+        }
+
+        await UserSavedKompetisiModel.create({
+            userId: user.id,
+            kompetisiId: kompetisi.id
+        });
+
+        res.status(201).json({ msg: "Kompetisi berhasil disimpan." });
+
+    } catch (error) {
+        console.error("Error saving kompetisi:", error);
+        res.status(500).json({ msg: error.message });
+    }
 };
 
-export const saveKompetisiForUser = async (req, res) => {
-  try {
-    const { userId, kompetisiId } = req.body;
+// Menghapus kompetisi yang disimpan
+export const unsaveKompetisi = async (req, res) => {
+    const userInternalId = req.userId;
+    const kompetisiUuid = req.params.id;
 
-    const existingEntry = await UserSavedKompetisi.findOne({
-      where: {
-        userId: userId,
-        kompetisiId: kompetisiId,
-      },
-    });
+    try {
+        const user = await UserModel.findOne({ where: { id: userInternalId } });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
 
-    if (existingEntry) {
-      return res.status(409).json({ msg: "Kompetisi already saved by this user" });
+        const kompetisi = await KompetisiModel.findOne({ where: { uuid: kompetisiUuid } });
+        if (!kompetisi) {
+            return res.status(404).json({ msg: "Kompetisi tidak ditemukan." });
+        }
+
+        const deletedRows = await UserSavedKompetisiModel.destroy({
+            where: {
+                userId: user.id,
+                kompetisiId: kompetisi.id
+            }
+        });
+
+        if (deletedRows === 0) {
+            return res.status(404).json({ msg: "Kompetisi ini tidak ditemukan dalam daftar tersimpan Anda." });
+        }
+
+        res.status(200).json({ msg: "Kompetisi berhasil dihapus dari daftar tersimpan." });
+
+    } catch (error) {
+        console.error("Error unsaving kompetisi:", error);
+        res.status(500).json({ msg: error.message });
     }
-
-    await UserSavedKompetisi.create({
-      userId: userId,
-      kompetisiId: kompetisiId,
-    });
-    res.status(201).json({ msg: "Kompetisi saved successfully" });
-  } catch (error) {
-    console.log(error.message);
-    res.status(400).json({ msg: error.message });
-  }
 };
 
-export const deleteSavedKompetisiForUser = async (req, res) => {
-  try {
-    const { userId, kompetisiId } = req.params;
 
-    const result = await UserSavedKompetisi.destroy({
-      where: {
-        userId: userId,
-        kompetisiId: kompetisiId,
-      },
-    });
+// Mendapatkan semua kompetisi yang disimpan oleh user
+export const getSavedKompetisisByUser = async (req, res) => {
+    const userInternalId = req.userId;
 
-    if (result === 0) {
-      return res.status(404).json({ msg: "Saved kompetisi not found" });
+    try {
+        const user = await UserModel.findOne({ where: { id: userInternalId } });
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan." });
+        }
+
+        const savedKompetisis = await UserSavedKompetisiModel.findAll({
+            where: { userId: user.id },
+            include: [{
+                model: KompetisiModel,
+                attributes: ['uuid', 'poster_gambar', 'judul', 'tanggal', 'biaya', 'tingkat_kompetisi']
+            }]
+        });
+
+        const responseData = savedKompetisis.map(item => item.kompetisi); 
+
+        res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error("Error fetching saved kompetisis:", error);
+        res.status(500).json({ msg: error.message });
     }
-
-    res.status(200).json({ msg: "Saved kompetisi deleted successfully" });
-  } catch (error) {
-    console.log(error.message);
-    res.status(500).json({ msg: "Internal Server Error" });
-  }
 };
