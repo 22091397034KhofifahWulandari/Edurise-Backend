@@ -1,29 +1,24 @@
-import { Sequelize } from "sequelize";
+// models/UserSavedArticleModel.js
+import { Sequelize, DataTypes } from "sequelize";
 import db from "../config/Database.js";
-import User from "./UserModel.js";
-import Article from "./ArticleModel.js";
-
-const { DataTypes } = Sequelize;
 
 const UserSavedArticle = db.define('user_saved_articles', {
-  userId: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    references: {
-      model: User,
-      key: 'id'
+    // Menghilangkan kolom 'uuid' di sini
+    savedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: false
     }
-  },
-  articleId: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    references: {
-      model: Article,
-      key: 'id'
-    }
-  },
 }, {
-  freezeTableName: true
+    freezeTableName: true,
+    timestamps: false, // Matikan timestamps default Sequelize (createdAt, updatedAt)
+    indexes: [
+        {
+            unique: true,
+            fields: ['userId', 'articleId'] // Pastikan kombinasi userId dan articleId unik
+        }
+    ]
 });
+
 
 export default UserSavedArticle;

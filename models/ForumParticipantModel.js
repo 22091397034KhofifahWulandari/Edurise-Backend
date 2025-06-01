@@ -1,9 +1,9 @@
-// models/UserSavedForumModel.js
+// models/ForumParticipantModel.js
 import { Sequelize, DataTypes } from "sequelize";
 import db from "../config/Database.js";
 
-const UserSavedForum = db.define('user_saved_forum', {
-    savedAt: {
+const ForumParticipant = db.define('forum_participants', {
+    joinedAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
         allowNull: false
@@ -19,4 +19,4 @@ const UserSavedForum = db.define('user_saved_forum', {
     ]
 });
 
-export default UserSavedForum;
+export default ForumParticipant;

@@ -5,42 +5,49 @@ import db from "../config/Database.js";
 const { DataTypes } = Sequelize;
 
 const Forum = db.define('forum', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
+    uuid:{
+        type: DataTypes.STRING,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+        unique: true,
+        validate: {
+            notEmpty: true
+        }
     },
     userId: { // ID Pembuat Forum (foreign key ke User)
         type: DataTypes.INTEGER,
         allowNull: false,
     },
-    judul: { // Judul Forum
+    judul: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [5, 255]
+        }
     },
-    konten: { // ISI/DESKRIPSI FORUM (DIKEMBALIKAN DARI 'DESKRIPSI' MENJADI 'KONTEN')
+    konten: {
         type: DataTypes.TEXT,
-        allowNull: false
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    nama_pembuat_forum: { // Nama Pembuat Forum (denormalized untuk kemudahan data)
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    anggota_di_forum: { // Daftar Anggota (representasi sederhana, idealnya melalui tabel relasi Many-to-Many)
-        type: DataTypes.TEXT, // Akan berisi daftar nama/ID anggota yang dipisahkan koma
-        allowNull: true // Bisa kosong jika belum ada anggota
-    },
-    kategori: { // Kategori Forum dengan pilihan ENUM
+    // HAPUS kolom nama_pembuat_forum di sini
+    kategori: {
         type: DataTypes.ENUM(
             'Computer',
             'Desain UI/UX',
             'Digital Marketing',
             'Sains',
-            'Bisnis'
+            'Bisnis',
+            'Lainnya'
         ),
-        allowNull: false
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    // Sequelize akan otomatis menambahkan createdAt dan updatedAt
 }, {
     freezeTableName: true
 });

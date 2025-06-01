@@ -5,43 +5,80 @@ import db from "../config/Database.js";
 const { DataTypes } = Sequelize;
 
 const Beasiswa = db.define('beasiswa', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
+    uuid:{
+        type: DataTypes.STRING,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    img: { // Sesuai dengan 'img' di skema SQL
+    img: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    title: { // Sesuai dengan 'title' di skema SQL
+    title: {
         type: DataTypes.STRING,
-        allowNull: true // Default NULL di SQL, jadi di model juga allowNull true
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [3, 255]
+        }
     },
-    description: { // Sesuai dengan 'description' di skema SQL (sebelumnya 'deskripsi')
+    description: {
         type: DataTypes.TEXT,
-        allowNull: true
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    detail: { // Kolom baru sesuai 'detail' di skema SQL
+    detail: {
         type: DataTypes.TEXT,
-        allowNull: true
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    kategori: { // Kolom baru sesuai 'kategori' di skema SQL
-        type: DataTypes.STRING(50), // Batas panjang 50 karakter seperti di SQL
-        allowNull: true
+    kategori: {
+        type: DataTypes.ENUM(
+            'Dalam Negeri',
+            'Luar Negeri'
+            // Tambahkan kategori lain jika ada
+        ),
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    jenjang: { // Kolom baru sesuai 'jenjang' di skema SQL
-        type: DataTypes.STRING(20), // Batas panjang 20 karakter seperti di SQL
-        allowNull: true
+    jenjang: {
+        type: DataTypes.ENUM(
+            'SMA/SMK',
+            'D3',
+            'S1',
+            'S2',
+            'S3'
+        ),
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
-    lokasi: { // Kolom baru sesuai 'lokasi' di skema SQL
-        type: DataTypes.STRING(100), // Batas panjang 100 karakter seperti di SQL
-        allowNull: true
+    lokasi: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [3, 100]
+        }
     },
-    deadline: { // Sesuai dengan 'deadline' di skema SQL (sebelumnya 'timeline')
-        type: DataTypes.STRING(50), // Batas panjang 50 karakter seperti di SQL
-        allowNull: true
-    },
+    deadline: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            isDate: true
+        }
+    }
 }, {
     freezeTableName: true
 });

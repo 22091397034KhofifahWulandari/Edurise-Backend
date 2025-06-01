@@ -2,43 +2,62 @@
 import { Sequelize } from "sequelize";
 import db from "../config/Database.js";
 
+
 const { DataTypes } = Sequelize;
 
 const Article = db.define('articles', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
+    uuid:{
+        type: DataTypes.STRING,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
     },
     judul: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [3, 255]
+        }
     },
-    deskripsi: { // Kolom yang sudah ada
+    deskripsi: {
         type: DataTypes.TEXT,
         allowNull: true
     },
-    gambar: { // Kolom yang sudah ada
+    gambar: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    link: { // Kolom yang sudah ada dan unique
+    link: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true
+        unique: true,
+        validate: {
+            notEmpty: true,
+            isUrl: true
+        }
     },
-    penulis: { // Kolom BARU: Penulis Artikel
+    penulis: {
         type: DataTypes.STRING,
-        allowNull: false // Penulis harus diisi
+        allowNull: false,
+        validate: {
+            notEmpty: true,
+            len: [3, 150]
+        }
     },
-    kategori: { // Kolom BARU: Kategori Artikel dengan ENUM
+    kategori: {
         type: DataTypes.ENUM(
             'Beasiswa & Pendidikan',
             'Pengembangan Diri & Karir',
             'Tips Belajar & Produktivitas'
         ),
-        allowNull: false // Kategori harus diisi
-    },
+        allowNull: false,
+        validate: {
+            notEmpty: true
+        }
+    }
 }, {
     freezeTableName: true
 });
