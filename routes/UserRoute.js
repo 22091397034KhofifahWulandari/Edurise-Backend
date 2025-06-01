@@ -1,18 +1,24 @@
 import express from "express";
 import {
     getUsers,
-    getUsersById,
+    getUserById,
     createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    forgotPassword, // Pastikan di-import
+    resetPassword
 } from "../controllers/UserController.js";
+import { verifyUser, adminOnly } from "../middleware/AuthUser.js";
 
 const router = express.Router();
 
-router.get('/users', getUsers);
-router.get('/users/:id', getUsersById);
+router.get('/users', verifyUser, adminOnly, getUsers);
+router.get('/users/:id', verifyUser, adminOnly, getUserById);
 router.post('/users', createUser);
-router.patch('/users/:id', updateUser);
-router.delete('/users/:id', deleteUser);
+router.patch('/users/:id', verifyUser, adminOnly, updateUser);
+router.delete('/users/:id', verifyUser, adminOnly, deleteUser);
+router.post('/forgot-password', forgotPassword);         
+router.post('/reset-password/:token', resetPassword);    
+
 
 export default router;
